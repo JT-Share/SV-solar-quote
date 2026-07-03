@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tesla Solar Roof — Quote Builder</title>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="stock.js"></script>
+<style>
+  :root{
+    --ink:#393c41;         /* Tesla near-black */
+    --gray:#5c5c5c;        /* value gray */
+    --muted:#8e8e8e;       /* label gray */
+    --line:#ced0d8;        /* divider */
+    --panel:#f4f4f4;       /* form bg */
+    --card:#ffffff;
+    --accent:#e31937;      /* Tesla red */
+    --radius:10px;
+    --font:"Helvetica Neue",Helvetica,Arial,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--font);color:var(--ink);background:#e9e9ec;}
+  header.app{display:flex;align-items:center;gap:12px;padding:14px 22px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10;}
+  header.app .logo{color:var(--accent);font-weight:700;letter-spacing:2px;font-size:15px;}
+  header.app h1{font-size:15px;margin:0;font-weight:600;color:var(--ink);}
+  header.app .tag{color:var(--muted);font-size:12.5px;margin-left:auto;}
+  .wrap{display:grid;grid-template-columns:380px 1fr;min-height:calc(100vh - 52px);}
+  .form{padding:18px 20px;background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;}
+  .preview-pane{padding:24px;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:18px;}
+  fieldset{border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px 16px;margin:0 0 16px;background:#fff;}
+  legend{padding:0 7px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:600;}
+  label{display:block;font-size:12.5px;margin:11px 0 4px;color:var(--gray);}
+  label:first-of-type{margin-top:2px;}
+  input[type=text],input[type=number],select{width:100%;padding:8px 10px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:13.5px;font-family:inherit;}
+  input:focus,select:focus{outline:none;border-color:var(--accent);}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4;}
+  .switch{display:flex;align-items:center;gap:9px;margin:8px 0 2px;}
+  .switch input{width:auto;}
+  .switch label{margin:0;color:var(--ink);font-size:13px;}
+  button{cursor:pointer;border:none;border-radius:7px;font-weight:600;font-size:14px;padding:12px 16px;font-family:inherit;}
+  .btn-primary{background:var(--accent);color:#fff;width:100%;margin-top:2px;}
+  .btn-primary:hover{background:#c8112e;}
+
+  /* ---- slide preview (mirrors the PDF/PowerPoint) ---- */
+  .slide{width:960px;max-width:100%;aspect-ratio:11/8.5;background:#fff;border-radius:8px;box-shadow:0 6px 26px rgba(0,0,0,.16);
+         display:grid;grid-template-columns:1.55fr 1fr;overflow:hidden;}
+  .slide .photo{position:relative;background:#e9edf1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:22px;}
+  .slide .photo img{width:100%;height:100%;object-fit:contain;border-radius:8px;}
+  .slide .photo .ph{color:#9aa2ad;font-size:13px;text-align:center;}
+  .slide .stats{padding:26px 26px 20px;display:flex;flex-direction:column;}
+  .sec-h{font-size:13px;letter-spacing:2px;color:var(--gray);font-weight:600;text-transform:uppercase;margin:0 0 12px;}
+  .sysgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 10px;margin-bottom:22px;}
+  .stat .k{font-size:10px;letter-spacing:.5px;color:var(--muted);text-transform:uppercase;}
+  .stat .v{font-size:19px;color:var(--gray);font-weight:300;margin-top:1px;}
+  .cmp{display:grid;grid-template-columns:1fr 1px 1fr;gap:0 16px;}
+  .cmp .divider{background:var(--line);}
+  .cmp h4{font-size:13px;color:var(--gray);font-weight:600;text-align:center;margin:0 0 12px;}
+  .cmpitem{text-align:center;margin-bottom:12px;}
+  .cmpitem .k{font-size:10.5px;color:var(--muted);}
+  .cmpitem .v{font-size:16px;color:var(--gray);font-weight:300;margin-top:2px;}
+  .cmpitem.total .k{font-weight:600;color:var(--gray);}
+  .cmpitem.total .v{color:var(--ink);font-weight:500;}
+  .diffbar{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);text-align:center;}
+  .diffbar .k{font-size:10.5px;letter-spacing:.8px;color:var(--muted);text-transform:uppercase;}
+  .diffbar .v{font-size:22px;font-weight:600;margin-top:2px;}
+  .clientline{width:960px;max-width:100%;display:flex;justify-content:space-between;color:var(--gray);font-size:13px;padding:0 4px;}
+  .clientline b{color:var(--ink);}
+</style>
+</head>
+<body>
+<header class="app">
+  <span class="logo">T E S L A</span>
+  <h1>Solar Roof — Quote Builder</h1>
+  <span class="tag">Solar Roof + Powerwall vs. traditional roof + years of grid electricity</span>
+  <a href="/api/logout" style="margin-left:16px;color:var(--muted);font-size:13px;text-decoration:none;border:1px solid var(--line);padding:6px 12px;border-radius:7px;">Log out</a>
+</header>
+
+<div class="wrap">
+  <!-- ============ FORM ============ -->
+  <form class="form" id="form" autocomplete="off">
+    <fieldset>
+      <legend>Client & Project</legend>
+      <label>Client name</label>
+      <input type="text" id="clientName" placeholder="Jane & John Smith" />
+      <label>Property address</label>
+      <input type="text" id="address" placeholder="123 Sunny Ln, Austin, TX" />
+      <div class="row">
+        <div><label>Quote date</label><input type="text" id="quoteDate" /></div>
+        <div><label>Prepared by</label><input type="text" id="preparedBy" placeholder="Your name" /></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Your System</legend>
+      <div class="row">
+        <div><label>System size (kW)</label><input type="number" id="systemSize" step="0.001" placeholder="25.992" /></div>
+        <div><label>Year-1 production (kWh)</label><input type="number" id="firstYearProd" step="1" placeholder="39150" /></div>
+      </div>
+      <div class="row">
+        <div><label>Annual usage (kWh)</label><input type="number" id="annualUsage" step="1" placeholder="45923" /></div>
+        <div><label>Annual degradation (%)</label><input type="number" id="degradation" step="0.01" value="0.5" /></div>
+      </div>
+      <p class="hint">Offset = Year-1 production ÷ annual usage. Production degrades each year: Year N = Year-1 × (1 − deg)^(N−1).</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Electricity & Term</legend>
+      <div class="row">
+        <div><label>Current rate ($/kWh)</label><input type="number" id="rate" step="0.0001" placeholder="0.15" /></div>
+        <div><label>Annual rate increase (%)</label><input type="number" id="escalation" step="0.1" placeholder="6" /></div>
+      </div>
+      <div class="row">
+        <div><label>Comparison term (years)</label><input type="number" id="term" step="1" value="35" /></div>
+        <div>
+          <label>Energy-cost basis</label>
+          <select id="basis">
+            <option value="production" selected>Production (degrading) × rate</option>
+            <option value="usage">Annual usage × rate</option>
+            <option value="capped">min(usage, production) × rate</option>
+          </select>
+        </div>
+      </div>
+      <p class="hint" id="basisHint"></p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Tesla Cost</legend>
+      <label>Solar Roof cost ($)</label>
+      <input type="number" id="solarRoofCost" step="1" placeholder="457197" />
+      <div class="switch">
+        <input type="checkbox" id="includePowerwall" checked />
+        <label for="includePowerwall">Include Powerwall(s)</label>
+      </div>
+      <div id="pwFields" class="row">
+        <div><label>Powerwall qty</label><input type="number" id="pwQty" step="1" value="3" /></div>
+        <div><label>Powerwall total cost ($)</label><input type="number" id="pwCost" step="1" placeholder="32500" /></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Grid + Roof Comparison</legend>
+      <label>Standard / metal roof cost ($)</label>
+      <input type="number" id="tradRoofCost" step="1" placeholder="142800" />
+      <div id="genField">
+        <label>Backup generator cost ($) <span class="hint">— included only with Powerwall</span></label>
+        <input type="number" id="genCost" step="1" placeholder="0" />
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Labels (optional — rename any line)</legend>
+      <div class="row">
+        <div><label>Solar column header</label><input type="text" id="lblSolarCol" placeholder="Solar Roof" /></div>
+        <div><label>Comparison column header</label><input type="text" id="lblGridCol" placeholder="Grid + Roof" /></div>
+      </div>
+      <label>Solar roof line</label>
+      <input type="text" id="lblSolarRoof" placeholder="Solar Roof Cost" />
+      <label>Powerwall line <span class="hint">(“ × qty” is added automatically)</span></label>
+      <input type="text" id="lblPowerwall" placeholder="Powerwall" />
+      <label>Roof line</label>
+      <input type="text" id="lblRoof" placeholder="Standard Roof Cost" />
+      <label>Energy line <span class="hint">— type {term} to insert the year count</span></label>
+      <input type="text" id="lblEnergy" placeholder="Est. {term} Yr Energy Cost" />
+      <label>Generator line</label>
+      <input type="text" id="lblGen" placeholder="Backup Generator" />
+    </fieldset>
+
+    <fieldset>
+      <legend>Rendering / Photo</legend>
+      <div class="switch">
+        <input type="checkbox" id="useStock" checked />
+        <label for="useStock">Use stock Tesla Solar Roof photo</label>
+      </div>
+      <label>Upload client-house rendering</label>
+      <input type="file" id="photo" accept="image/*" />
+      <p class="hint">Uncheck the box and upload a rendering of the client's home to replace the stock photo.</p>
+    </fieldset>
+
+    <div class="row" style="gap:10px;">
+      <button type="button" class="btn-primary" id="exportBtn">⬇ Export PDF</button>
+      <button type="button" class="btn-primary" id="detailBtn" style="background:#57606a;">+ Year detail</button>
+    </div>
+    <p class="hint" style="margin-top:8px;">“Year detail” adds a second page with the full year-by-year production &amp; energy table.</p>
+    <div id="exportResult" style="margin-top:10px;font-size:13px;"></div>
+  </form>
+
+  <!-- ============ PREVIEW ============ -->
+  <div class="preview-pane">
+    <div class="clientline">
+      <div><b id="pvClient">Client name</b> <span id="pvAddr"></span></div>
+      <div id="pvDate"></div>
+    </div>
+    <div class="slide" id="slide">
+      <div class="photo"><img id="pvImg" alt=""/><div class="ph" id="pvPh" style="display:none;">Upload a rendering or check “Use stock photo”</div></div>
+      <div class="stats">
+        <div class="sec-h">Your System</div>
+        <div class="sysgrid">
+          <div class="stat"><div class="k">Annual Usage</div><div class="v" id="pvUsage">—</div></div>
+          <div class="stat"><div class="k">Offset</div><div class="v" id="pvOffset">—</div></div>
+          <div class="stat"><div class="k">Annual Production</div><div class="v" id="pvProd">—</div></div>
+          <div class="stat"><div class="k">System Size</div><div class="v" id="pvSize">—</div></div>
+        </div>
+        <div class="sec-h">Cost Comparison</div>
+        <div class="cmp">
+          <div>
+            <h4 id="pvSolarHdr">Solar Roof</h4>
+            <div id="pvTeslaCol"></div>
+          </div>
+          <div class="divider"></div>
+          <div>
+            <h4 id="pvGridHdr">Grid + Roof</h4>
+            <div id="pvGridCol"></div>
+          </div>
+        </div>
+        <div class="diffbar">
+          <div class="k" id="pvDiffK">35-Year Cost Difference</div>
+          <div class="v" id="pvDiff">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STOCK_SRC = window.STOCK_DATA_URL || "stock-house.jpg";
+let uploadedImg = null;
+
+const $ = id => document.getElementById(id);
+const money = n => "$" + Math.round(n).toLocaleString("en-US");
+const money2 = n => "$" + n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const num = id => parseFloat($(id).value) || 0;
+
+$("quoteDate").value = new Date().toLocaleDateString("en-US",{year:'numeric',month:'long',day:'numeric'});
+
+const BASIS_HINTS = {
+  usage: "Grid energy cost = annual usage × escalating rate, each year. Matches your current sheet.",
+  production: "Grid energy cost = each year's production (degrading) × escalating rate.",
+  capped: "Values only offset energy: min(usage, production) × escalating rate, production degrading.",
+};
+
+function L(id,def){const v=($(id).value||"").trim();return v||def;}
+
+function collect(){
+  const includePW = $("includePowerwall").checked;
+  return {
+    labels:{
+      solarCol:L("lblSolarCol","Solar Roof"), gridCol:L("lblGridCol","Grid + Roof"),
+      solarRoof:L("lblSolarRoof","Solar Roof Cost"), powerwall:L("lblPowerwall","Powerwall"),
+      roof:L("lblRoof","Standard Roof Cost"), energy:L("lblEnergy","Est. {term} Yr Energy Cost"),
+      gen:L("lblGen","Backup Generator"),
+    },
+    clientName:$("clientName").value.trim(), address:$("address").value.trim(),
+    quoteDate:$("quoteDate").value.trim(), preparedBy:$("preparedBy").value.trim(),
+    systemSize:num("systemSize"), firstYearProd:num("firstYearProd"), annualUsage:num("annualUsage"),
+    degradation:num("degradation")/100, term:Math.max(1,Math.round(num("term"))||35),
+    rate:num("rate"), escalation:num("escalation")/100, basis:$("basis").value,
+    solarRoofCost:num("solarRoofCost"), includePW,
+    pwQty:includePW?(Math.round(num("pwQty"))||0):0, pwCost:includePW?num("pwCost"):0,
+    tradRoofCost:num("tradRoofCost"), genCost:includePW?num("genCost"):0,
+    useStock:$("useStock").checked,
+  };
+}
+
+function compute(d){
+  const rows=[]; let energyTotal=0, totalProd=0;
+  for(let y=1;y<=d.term;y++){
+    const production=d.firstYearProd*Math.pow(1-d.degradation,y-1);
+    const rate=d.rate*Math.pow(1+d.escalation,y-1);
+    let basisKwh;
+    if(d.basis==="production") basisKwh=production;
+    else if(d.basis==="capped") basisKwh=Math.min(d.annualUsage||production,production);
+    else basisKwh=d.annualUsage; // usage
+    const annual=basisKwh*rate;
+    energyTotal+=annual; totalProd+=production;
+    rows.push({y,rate,production,basisKwh,annual,cumulative:energyTotal});
+  }
+  const teslaTotal=d.solarRoofCost+d.pwCost;
+  const gridTotal=d.tradRoofCost+energyTotal+d.genCost;
+  const diff=gridTotal-teslaTotal;                       // + => solar cheaper
+  const offset=d.annualUsage>0?(d.firstYearProd/d.annualUsage):0;
+  return {rows,teslaTotal,energyTotal,gridTotal,diff,offset,totalProd};
+}
+
+function cmpItem(k,v,total){return `<div class="cmpitem${total?' total':''}"><div class="k">${k}</div><div class="v">${v}</div></div>`;}
+
+function render(){
+  const d=collect(), c=compute(d);
+  $("basisHint").textContent=BASIS_HINTS[d.basis];
+
+  // client line
+  $("pvClient").textContent=d.clientName||"Client name";
+  $("pvAddr").textContent=d.address?("· "+d.address):"";
+  $("pvDate").textContent=[d.preparedBy?("Prepared by "+d.preparedBy):"",d.quoteDate].filter(Boolean).join("  ·  ");
+
+  // system panel
+  $("pvUsage").textContent=d.annualUsage?d.annualUsage.toLocaleString()+" kWh":"—";
+  $("pvProd").textContent=d.firstYearProd?d.firstYearProd.toLocaleString()+" kWh":"—";
+  $("pvOffset").textContent=d.annualUsage?Math.round(c.offset*100)+"%":"—";
+  $("pvSize").textContent=d.systemSize?d.systemSize+" kW":"—";
+
+  const energyLbl=d.labels.energy.replace(/\{term\}/g,d.term);
+
+  // column headers
+  $("pvSolarHdr").textContent=d.labels.solarCol;
+  $("pvGridHdr").textContent=d.labels.gridCol;
+
+  // tesla column
+  let t=cmpItem(d.labels.solarRoof,money(d.solarRoofCost));
+  if(d.includePW) t+=cmpItem(`${d.labels.powerwall} x${d.pwQty}`,money(d.pwCost));
+  t+=cmpItem("Total Cost",money(c.teslaTotal),true);
+  $("pvTeslaCol").innerHTML=t;
+
+  // grid column
+  let g=cmpItem(d.labels.roof,money(d.tradRoofCost));
+  g+=cmpItem(energyLbl,money(c.energyTotal));
+  if(d.includePW && d.genCost>0) g+=cmpItem(d.labels.gen,money(d.genCost));
+  g+=cmpItem("Est. Total Cost",money(c.gridTotal),true);
+  $("pvGridCol").innerHTML=g;
+
+  // difference bar
+  $("pvDiffK").textContent=`${d.term}-Year Cost Difference`;
+  const solarCheaper=c.diff>=0;
+  $("pvDiff").textContent=(solarCheaper?"Save ":"+")+money(Math.abs(c.diff));
+  $("pvDiff").style.color=solarCheaper?"#1f9d55":"var(--accent)";
+
+  // image
+  const src=d.useStock?STOCK_SRC:uploadedImg;
+  if(src){$("pvImg").src=src;$("pvImg").style.display="block";$("pvPh").style.display="none";}
+  else{$("pvImg").removeAttribute("src");$("pvImg").style.display="none";$("pvPh").style.display="block";}
+  return {d,c};
+}
+
+function togglePW(){const on=$("includePowerwall").checked;$("pwFields").style.display=on?"grid":"none";$("genField").style.display=on?"block":"none";}
+$("includePowerwall").addEventListener("change",()=>{togglePW();render();});
+$("photo").addEventListener("change",e=>{const f=e.target.files[0];if(!f){uploadedImg=null;render();return;}const r=new FileReader();r.onload=ev=>{uploadedImg=ev.target.result;$("useStock").checked=false;render();};r.readAsDataURL(f);});
+$("form").addEventListener("input",render);
+$("exportBtn").addEventListener("click",()=>exportPDF(false));
+$("detailBtn").addEventListener("click",()=>exportPDF(true));
+
+// ---------- image loader ----------
+function loadImg(src){return new Promise(res=>{const i=new Image();i.crossOrigin="anonymous";i.onload=()=>res({img:i,w:i.naturalWidth,h:i.naturalHeight});i.onerror=()=>res(null);i.src=src;});}
+function toDataURL(im){const cv=document.createElement("canvas");cv.width=im.w;cv.height=im.h;cv.getContext("2d").drawImage(im.img,0,0);return cv.toDataURL("image/jpeg",0.92);}
+
+// ---------- on-page status ----------
+let __lastURL=null;
+function showStatus(html,color){$("exportResult").innerHTML=`<span style="color:${color||'var(--muted)'}">${html}</span>`;}
+
+// ---------- PDF (landscape letter, matches the slide) ----------
+async function exportPDF(withDetail){
+ const btn=$("exportBtn"), oldTxt=btn.textContent;
+ try{
+  btn.textContent="Generating…"; showStatus("Generating PDF…");
+  if(!window.jspdf || !window.jspdf.jsPDF) throw new Error("PDF library didn't load — the 'vendor' folder must sit next to index.html.");
+  const {d,c}=render();
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:"pt",format:"letter",orientation:"landscape"});
+  const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight();
+  const M=40;
+  const ink=[57,60,65], gray=[92,92,92], muted=[142,142,142], line=[206,208,216], red=[227,25,55], green=[31,157,85];
+
+  // ---- client header strip ----
+  doc.setTextColor(...ink); doc.setFont("helvetica","bold"); doc.setFontSize(13);
+  doc.text(d.clientName||"Prepared for client", M, 40);
+  doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...gray);
+  if(d.address) doc.text(d.address, M, 55);
+  const rightMeta=[d.preparedBy?("Prepared by "+d.preparedBy):"", d.quoteDate].filter(Boolean).join("    ·    ");
+  doc.text(rightMeta, W-M, 40, {align:"right"});
+  doc.setDrawColor(...line); doc.setLineWidth(0.8); doc.line(M,66,W-M,66);
+
+  const bodyTop=84;
+  const colGap=26;
+  const photoW=(W-M*2)*0.56, statsX=M+photoW+colGap, statsW=(W-M*2)-photoW-colGap;
+
+  // ---- photo (left) ----
+  const src=d.useStock?STOCK_SRC:uploadedImg;
+  if(src){
+    const meta=await loadImg(src);
+    if(meta){
+      const boxH=H-bodyTop-M;
+      // contain-fit: show the whole rendering (incl. Powerwalls), top-aligned, no cropping
+      const scale=Math.min(photoW/meta.w, boxH/meta.h);
+      const dw=meta.w*scale, dh=meta.h*scale;
+      const dx=M+(photoW-dw)/2, dy=bodyTop;         // centered horizontally, top-aligned
+      // rounded-corner canvas at the drawn image's own size
+      const px=2, cv=document.createElement("canvas"); cv.width=dw*px; cv.height=dh*px;
+      const ctx=cv.getContext("2d");
+      const r=12*px; ctx.beginPath();
+      ctx.moveTo(r,0);ctx.arcTo(cv.width,0,cv.width,cv.height,r);ctx.arcTo(cv.width,cv.height,0,cv.height,r);
+      ctx.arcTo(0,cv.height,0,0,r);ctx.arcTo(0,0,cv.width,0,r);ctx.closePath();ctx.clip();
+      ctx.drawImage(meta.img, 0,0, cv.width, cv.height);
+      doc.addImage(cv.toDataURL("image/jpeg",0.92),"JPEG",dx,dy,dw,dh);
+    }
+  }
+
+  // ---- stats (right) ----
+  let y=bodyTop+6;
+  const sec=(txt)=>{doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...gray);
+    doc.text(txt.toUpperCase(),statsX,y,{charSpace:1.5});y+=6;doc.setDrawColor(...line);doc.setLineWidth(0.8);doc.line(statsX,y,statsX+statsW,y);y+=18;};
+  const stat=(x,k,v)=>{doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(...muted);
+    doc.text(k.toUpperCase(),x,y,{charSpace:.3});
+    doc.setFont("helvetica","normal");doc.setFontSize(15);doc.setTextColor(...gray);
+    doc.text(v,x,y+17);};
+
+  sec("Your System");
+  const half=statsW/2, colL=statsX, colR=statsX+half;
+  stat(colL,"Annual Usage", d.annualUsage?d.annualUsage.toLocaleString()+" kWh":"—");
+  stat(colR,"Offset", d.annualUsage?Math.round(c.offset*100)+"%":"—");
+  y+=40;
+  stat(colL,"Annual Production", d.firstYearProd?d.firstYearProd.toLocaleString()+" kWh":"—");
+  stat(colR,"System Size", d.systemSize?d.systemSize+" kW":"—");
+  y+=52;
+
+  sec("Cost Comparison");
+  // two sub columns with divider
+  const subGap=18, subW=(statsW-subGap)/2, leftX=statsX, rightX=statsX+subW+subGap;
+  const divX=statsX+subW+subGap/2;
+  const startY=y;
+  const colHead=(x,txt)=>{doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(...gray);
+    doc.text(txt,x+subW/2,y,{align:"center"});};
+  const li=(x,k,v,total)=>{doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.setTextColor(...muted);
+    doc.text(k,x+subW/2,y,{align:"center"});
+    doc.setFont(total?"helvetica":"helvetica",total?"bold":"normal");doc.setFontSize(total?14:13);
+    doc.setTextColor(...(total?ink:gray));
+    doc.text(v,x+subW/2,y+16,{align:"center"});};
+
+  const energyLbl=d.labels.energy.replace(/\{term\}/g,d.term);
+  colHead(leftX,d.labels.solarCol); colHead(rightX,d.labels.gridCol); y+=22;
+  // rows — track each column's y separately
+  let yl=y, yr=y;
+  const put=(x,k,v,total,which)=>{y=(which==='l'?yl:yr);li(x,k,v,total);if(which==='l')yl+=44;else yr+=44;};
+  put(leftX,d.labels.solarRoof,money(d.solarRoofCost),false,'l');
+  if(d.includePW) put(leftX,`${d.labels.powerwall} x${d.pwQty}`,money(d.pwCost),false,'l');
+  put(leftX,"Total Cost",money(c.teslaTotal),true,'l');
+
+  put(rightX,d.labels.roof,money(d.tradRoofCost),false,'r');
+  put(rightX,energyLbl,money(c.energyTotal),false,'r');
+  if(d.includePW && d.genCost>0) put(rightX,d.labels.gen,money(d.genCost),false,'r');
+  put(rightX,"Est. Total Cost",money(c.gridTotal),true,'r');
+
+  // divider between columns
+  const divBottom=Math.max(yl,yr)-30;
+  doc.setDrawColor(...line);doc.setLineWidth(1);doc.line(divX,startY-4,divX,divBottom);
+
+  // ---- difference bar ----
+  const solarCheaper=c.diff>=0;
+  let by=Math.max(yl,yr)+8;
+  doc.setDrawColor(...line);doc.setLineWidth(0.8);doc.line(statsX,by,statsX+statsW,by);by+=20;
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...muted);
+  doc.text(`${d.term}-YEAR COST DIFFERENCE`,statsX+statsW/2,by,{align:"center",charSpace:1});
+  doc.setFont("helvetica","bold");doc.setFontSize(22);doc.setTextColor(...(solarCheaper?green:red));
+  doc.text((solarCheaper?"Save ":"+")+money(Math.abs(c.diff)),statsX+statsW/2,by+26,{align:"center"});
+
+  // ---- footer disclaimer ----
+  doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...muted);
+  doc.text("Estimates for comparison only; not a guarantee of production, savings, or future utility rates. Rate escalation and "+(d.degradation*100).toFixed(2)+"%/yr degradation are projections.",
+    M,H-16,{maxWidth:W-M*2});
+
+  // ---- optional detail page ----
+  if(withDetail){
+    doc.addPage("letter","landscape");
+    doc.setTextColor(...ink);doc.setFont("helvetica","bold");doc.setFontSize(14);
+    doc.text(`${d.term}-Year Production & Energy Projection`,M,40);
+    doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...gray);
+    doc.text(`Rate ${money2(d.rate)}/kWh escalating ${(d.escalation*100).toFixed(1)}%/yr · production degrading ${(d.degradation*100).toFixed(2)}%/yr · basis: ${d.basis}`,M,56);
+    doc.autoTable({
+      startY:70, margin:{left:M,right:M},
+      head:[["Year","Rate $/kWh","Production kWh","Billed kWh","Annual energy $","Cumulative $"]],
+      body:c.rows.map(r=>[r.y,money2(r.rate),Math.round(r.production).toLocaleString(),
+        Math.round(r.basisKwh).toLocaleString(),money(r.annual),money(r.cumulative)]),
+      theme:"striped",styles:{fontSize:8,cellPadding:2.5,halign:"right"},
+      headStyles:{fillColor:ink,textColor:255,halign:"right"},
+      columnStyles:{0:{halign:"left"}},
+      alternateRowStyles:{fillColor:[247,247,248]},
+    });
+  }
+
+  const fname=(d.clientName?d.clientName.replace(/[^a-z0-9]+/gi,"_"):"Tesla_Solar")+"_Quote.pdf";
+
+  // build a real, clickable download link on the page (a genuine gesture the browser won't block)
+  const blob=doc.output("blob");
+  if(__lastURL){ try{URL.revokeObjectURL(__lastURL);}catch(_){} }
+  __lastURL=URL.createObjectURL(blob);
+  $("exportResult").innerHTML=
+    `<a href="${__lastURL}" download="${fname}" id="dlLink" `+
+    `style="display:inline-block;background:var(--accent);color:#fff;padding:9px 14px;border-radius:7px;font-weight:600;text-decoration:none;">`+
+    `⬇ Save ${fname}</a>`+
+    `<div class="hint" style="margin-top:6px;">If it didn’t download automatically, click the button above (or right-click → “Save link as”).</div>`;
+
+  // also try to trigger it automatically (works in most browsers; harmless if blocked)
+  try{ $("dlLink").click(); }catch(_){}
+ }catch(err){
+  console.error("PDF export failed:",err);
+  showStatus("⚠ Export failed: "+((err&&err.message)?err.message:err)+" — press F12 → Console for details.","var(--accent)");
+ }finally{
+  btn.textContent=oldTxt;
+ }
+}
+
+togglePW();
+render();
+</script>
+</body>
+</html>
