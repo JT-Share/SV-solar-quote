@@ -34,6 +34,7 @@
   label:first-of-type{margin-top:2px;}
   input[type=text],input[type=number],select{width:100%;padding:8px 10px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:13.5px;font-family:inherit;}
   input:focus,select:focus{outline:none;border-color:var(--accent);}
+  input.locked{background:#eef0f2;color:var(--muted);cursor:not-allowed;}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4;}
   .switch{display:flex;align-items:center;gap:9px;margin:8px 0 2px;}
@@ -124,6 +125,7 @@
         <div><label>Annual degradation (%)</label><input type="number" id="degradation" step="0.01" value="0.5" /></div>
       </div>
       <p class="hint">Offset = Year-1 production ÷ annual usage. Production degrades each year: Year N = Year-1 × (1 − deg)^(N−1).</p>
+      <div id="autofillNote" class="hint" style="margin-top:5px;color:#1f9d55;font-weight:600;display:none;">↑ Auto-filled from the monthly data below.</div>
     </fieldset>
 
     <fieldset>
@@ -416,7 +418,25 @@ function compute(d){
 
 function cmpItem(k,v,total){return `<div class="cmpitem${total?' total':''}"><div class="k">${k}</div><div class="v">${v}</div></div>`;}
 
+// When monthly data is present, it's the source of truth for annual usage & Year-1 production.
+function syncFromMonthly(){
+  const m=collectMonthly();
+  const uField=$("annualUsage"), pField=$("firstYearProd"), note=$("autofillNote");
+  if(m.any){
+    uField.value=Math.round(m.usage.reduce((a,b)=>a+b,0));
+    pField.value=Math.round(m.prod.reduce((a,b)=>a+b,0));
+    uField.readOnly=pField.readOnly=true;
+    uField.classList.add("locked"); pField.classList.add("locked");
+    note.style.display="block";
+  }else{
+    uField.readOnly=pField.readOnly=false;
+    uField.classList.remove("locked"); pField.classList.remove("locked");
+    note.style.display="none";
+  }
+}
+
 function render(){
+  syncFromMonthly();
   const d=collect(), c=compute(d);
   $("basisHint").textContent=BASIS_HINTS[d.basis];
 
