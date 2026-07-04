@@ -67,6 +67,27 @@
   .diffbar .v{font-size:22px;font-weight:600;margin-top:2px;}
   .clientline{width:960px;max-width:100%;display:flex;justify-content:space-between;color:var(--gray);font-size:13px;padding:0 4px;}
   .clientline b{color:var(--ink);}
+  textarea{width:100%;padding:8px 10px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:12.5px;font-family:inherit;resize:vertical;}
+  .mgrid{display:grid;grid-template-columns:36px 1fr 1fr;gap:5px 6px;align-items:center;margin-top:10px;}
+  .mgrid .mh{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;text-align:center;}
+  .mgrid .ml{font-size:12px;color:var(--gray);}
+  .mgrid input{padding:5px 6px;font-size:12px;}
+  .chartcard{width:960px;max-width:100%;background:#fff;border-radius:8px;box-shadow:0 6px 26px rgba(0,0,0,.14);padding:22px 26px 18px;}
+  .chartcard h3{margin:0 0 10px;font-size:16px;font-weight:600;}
+  .prodsum{display:flex;gap:40px;margin:0 0 16px;}
+  .prodsum .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+  .prodsum .v{font-size:23px;color:var(--ink);font-weight:300;margin-top:2px;}
+  .prodsum .v small{font-size:12px;color:var(--muted);}
+  .mlegend{display:flex;gap:22px;justify-content:center;margin-top:6px;font-size:12.5px;color:var(--gray);}
+  .mlegend span{display:inline-flex;align-items:center;gap:7px;}
+  .mlegend i{width:13px;height:13px;border-radius:2px;display:inline-block;}
+  .mtable{width:100%;border-collapse:collapse;margin-top:16px;font-size:11px;}
+  .mtable th,.mtable td{border:1px solid #e6e8ec;padding:5px 3px;text-align:center;color:var(--gray);white-space:nowrap;}
+  .mtable th{background:#f6f7f8;color:var(--muted);font-weight:600;font-size:10px;}
+  .mtable td.rowlbl,.mtable th.rowlbl{text-align:left;font-weight:600;padding-left:8px;}
+  .mtable td.uselbl{color:#f4622e;}
+  .mtable td.prodlbl{color:#cf8f00;}
+  .mtable td.offlbl{color:var(--ink);}
 </style>
 </head>
 <body>
@@ -103,6 +124,18 @@
         <div><label>Annual degradation (%)</label><input type="number" id="degradation" step="0.01" value="0.5" /></div>
       </div>
       <p class="hint">Offset = Year-1 production ÷ annual usage. Production degrades each year: Year N = Year-1 × (1 − deg)^(N−1).</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Monthly Production (Aurora)</legend>
+      <div class="row">
+        <div><label>Panels / tiles</label><input type="number" id="panels" step="1" placeholder="510" /></div>
+        <div style="display:flex;align-items:flex-end;"><button type="button" id="fillDemo" class="btn-primary" style="background:#57606a;padding:8px 10px;font-size:12px;">Load example data</button></div>
+      </div>
+      <label>Paste 12 rows from Aurora <span class="hint">— each row: usage &amp; production (spaces, tabs, or commas)</span></label>
+      <textarea id="monthlyPaste" rows="4" placeholder="2850 3650&#10;2500 3850&#10;2900 5000&#10;… (Jan → Dec)"></textarea>
+      <div class="mgrid" id="monthlyGrid"></div>
+      <p class="hint">Chart appears in the preview and adds a “Monthly Production” page to the PDF. Leave blank to skip.</p>
     </fieldset>
 
     <fieldset>
@@ -220,6 +253,21 @@
         </div>
       </div>
     </div>
+
+    <div class="chartcard" id="chartCard" style="display:none;">
+      <h3>Production</h3>
+      <div class="prodsum">
+        <div><div class="k">Panels</div><div class="v" id="pvPanels">—</div></div>
+        <div><div class="k">Annual</div><div class="v" id="pvAnnualM">—</div></div>
+        <div><div class="k">Offset</div><div class="v" id="pvOffsetM">—</div></div>
+      </div>
+      <div id="chartHost"></div>
+      <div class="mlegend">
+        <span><i style="background:#f4622e;"></i> Energy usage</span>
+        <span><i style="background:#f5b731;"></i> New system production</span>
+      </div>
+      <div id="monthlyTableHost"></div>
+    </div>
   </div>
 </div>
 
@@ -233,6 +281,89 @@ const money2 = n => "$" + n.toLocaleString("en-US",{minimumFractionDigits:2,maxi
 const num = id => parseFloat($(id).value) || 0;
 
 $("quoteDate").value = new Date().toLocaleDateString("en-US",{year:'numeric',month:'long',day:'numeric'});
+
+// ---------- Monthly production (Aurora chart) ----------
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTH_DAYS=[31,28,31,30,31,30,31,31,30,31,30,31];
+function avgDailyNet(prod,use,i){ return (prod-use)/MONTH_DAYS[i]; }
+function fmtNet(v){ return (v>=0?"+":"-")+Math.abs(v).toFixed(1); }
+const DEMO_USAGE=[2854,2512,2877,3323,4318,5135,5843,5510,4344,3534,2890,2783];
+const DEMO_PROD =[3662,3862,5011,5432,5564,4806,4743,4608,4113,4171,3640,3355];
+const USE_COLOR="#f4622e", PROD_COLOR="#f5b731";
+
+function buildMonthlyGrid(){
+  let h=`<div></div><div class="mh">Usage kWh</div><div class="mh">Prod kWh</div>`;
+  for(let i=0;i<12;i++){
+    h+=`<div class="ml">${MONTHS[i]}</div><input type="number" step="1" id="mu${i}" /><input type="number" step="1" id="mp${i}" />`;
+  }
+  $("monthlyGrid").innerHTML=h;
+}
+function collectMonthly(){
+  const usage=[],prod=[]; let any=false;
+  for(let i=0;i<12;i++){
+    const u=parseFloat($("mu"+i).value)||0, p=parseFloat($("mp"+i).value)||0;
+    usage.push(u); prod.push(p); if(u>0||p>0) any=true;
+  }
+  return {usage,prod,any,panels:parseFloat($("panels").value)||0};
+}
+function parsePaste(){
+  const lines=$("monthlyPaste").value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  for(let row=0;row<12 && row<lines.length;row++){
+    const nums=lines[row].replace(/,/g," ").split(/\s+/).map(Number).filter(n=>!isNaN(n));
+    if(nums.length>=2){ $("mu"+row).value=nums[nums.length-2]; $("mp"+row).value=nums[nums.length-1]; }
+    else if(nums.length===1){ $("mu"+row).value=nums[0]; }
+  }
+  render();
+}
+function loadDemo(){ $("panels").value=510; for(let i=0;i<12;i++){ $("mu"+i).value=DEMO_USAGE[i]; $("mp"+i).value=DEMO_PROD[i]; } render(); }
+function niceMax(v){ if(v<=0) return 1000; const step=v>8000?2000:1000; return Math.ceil(v/step)*step; }
+
+function makeChartSVG(usage,prod){
+  const W=900,H=330,padL=64,padR=14,padT=14,padB=38;
+  const plotW=W-padL-padR, plotH=H-padT-padB, x0=padL, y0=padT+plotH;
+  const maxV=niceMax(Math.max(...usage,...prod,1)), nTicks=6;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica,Arial,sans-serif">`;
+  for(let t=0;t<=nTicks;t++){
+    const val=maxV*t/nTicks, y=y0-(val/maxV)*plotH;
+    s+=`<line x1="${x0}" y1="${y}" x2="${x0+plotW}" y2="${y}" stroke="#eceef1" stroke-width="1"/>`;
+    s+=`<text x="${x0-8}" y="${y+4}" text-anchor="end" font-size="11" fill="#98a2b3">${Math.round(val).toLocaleString()} kWh</text>`;
+  }
+  const groupW=plotW/12, bw=Math.min(16,groupW*0.30), gap=3;
+  for(let i=0;i<12;i++){
+    const gx=x0+i*groupW+groupW/2, uh=(usage[i]/maxV)*plotH, ph=(prod[i]/maxV)*plotH;
+    s+=`<rect x="${gx-bw-gap/2}" y="${y0-uh}" width="${bw}" height="${uh}" fill="${USE_COLOR}" rx="1"/>`;
+    s+=`<rect x="${gx+gap/2}" y="${y0-ph}" width="${bw}" height="${ph}" fill="${PROD_COLOR}" rx="1"/>`;
+    s+=`<text x="${gx}" y="${y0+16}" text-anchor="middle" font-size="11" fill="#5c5c5c">${MONTHS[i]}</text>`;
+  }
+  s+=`<line x1="${x0}" y1="${y0}" x2="${x0+plotW}" y2="${y0}" stroke="#ced0d8" stroke-width="1"/></svg>`;
+  return s;
+}
+function makeMonthlyTable(usage,prod){
+  const c=v=>Math.round(v).toLocaleString();
+  let h=`<table class="mtable"><thead><tr><th class="rowlbl"></th>`;
+  for(const m of MONTHS) h+=`<th>${m}</th>`;
+  h+=`</tr></thead><tbody>`;
+  h+=`<tr><td class="rowlbl uselbl">Energy usage (kWh)</td>`+usage.map(v=>`<td>${c(v)}</td>`).join("")+`</tr>`;
+  h+=`<tr><td class="rowlbl prodlbl">New system production (kWh)</td>`+prod.map(v=>`<td>${c(v)}</td>`).join("")+`</tr>`;
+  h+=`<tr><td class="rowlbl offlbl">Avg. daily net (kWh)</td>`+usage.map((u,i)=>{
+    const net=avgDailyNet(prod[i],u,i);
+    return `<td style="color:${net<0?'#e31937':'#1f9d55'}">${fmtNet(net)}</td>`;
+  }).join("")+`</tr>`;
+  h+=`</tbody></table>`;
+  return h;
+}
+function updateMonthly(){
+  const m=collectMonthly();
+  if(!m.any){ $("chartCard").style.display="none"; return m; }
+  $("chartCard").style.display="block";
+  const annual=m.prod.reduce((a,b)=>a+b,0), usageAnnual=m.usage.reduce((a,b)=>a+b,0);
+  $("pvPanels").textContent=m.panels?m.panels.toLocaleString():"—";
+  $("pvAnnualM").innerHTML=annual.toLocaleString()+' <small>kWh</small>';
+  $("pvOffsetM").innerHTML=usageAnnual?(Math.round(annual/usageAnnual*100)+' <small>%</small>'):"—";
+  $("chartHost").innerHTML=makeChartSVG(m.usage,m.prod);
+  $("monthlyTableHost").innerHTML=makeMonthlyTable(m.usage,m.prod);
+  return m;
+}
 
 const BASIS_HINTS = {
   usage: "Grid energy cost = annual usage × escalating rate, each year. Matches your current sheet.",
@@ -329,6 +460,7 @@ function render(){
   const src=d.useStock?STOCK_SRC:uploadedImg;
   if(src){$("pvImg").src=src;$("pvImg").style.display="block";$("pvPh").style.display="none";}
   else{$("pvImg").removeAttribute("src");$("pvImg").style.display="none";$("pvPh").style.display="block";}
+  updateMonthly();
   return {d,c};
 }
 
@@ -336,6 +468,8 @@ function togglePW(){const on=$("includePowerwall").checked;$("pwFields").style.d
 $("includePowerwall").addEventListener("change",()=>{togglePW();render();});
 $("photo").addEventListener("change",e=>{const f=e.target.files[0];if(!f){uploadedImg=null;render();return;}const r=new FileReader();r.onload=ev=>{uploadedImg=ev.target.result;$("useStock").checked=false;render();};r.readAsDataURL(f);});
 $("form").addEventListener("input",render);
+$("monthlyPaste").addEventListener("input",parsePaste);
+$("fillDemo").addEventListener("click",loadDemo);
 $("exportBtn").addEventListener("click",()=>exportPDF(false));
 $("detailBtn").addEventListener("click",()=>exportPDF(true));
 
@@ -346,6 +480,77 @@ function toDataURL(im){const cv=document.createElement("canvas");cv.width=im.w;c
 // ---------- on-page status ----------
 let __lastURL=null;
 function showStatus(html,color){$("exportResult").innerHTML=`<span style="color:${color||'var(--muted)'}">${html}</span>`;}
+
+// ---------- monthly production chart page ----------
+function drawMonthlyChartPDF(doc, m){
+  doc.addPage("letter","landscape");
+  const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=40;
+  const ink=[57,60,65], gray=[92,92,92], muted=[142,142,142], line=[206,208,216];
+  doc.setTextColor(...ink); doc.setFont("helvetica","bold"); doc.setFontSize(15);
+  doc.text("Monthly Production", M, 40);
+
+  const annual=m.prod.reduce((a,b)=>a+b,0), usageAnnual=m.usage.reduce((a,b)=>a+b,0);
+  const off=usageAnnual?Math.round(annual/usageAnnual*100):0;
+  let sx=M;
+  const item=(k,v)=>{ doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(...muted);
+    doc.text(k.toUpperCase(),sx,62,{charSpace:.3});
+    doc.setFontSize(16);doc.setTextColor(...ink);doc.text(v,sx,82); sx+=doc.getTextWidth(v)+70; };
+  if(m.panels) item("Panels", m.panels.toLocaleString());
+  item("Annual", annual.toLocaleString()+" kWh");
+  item("Offset", off+"%");
+
+  // chart (reduced height to leave room for the table)
+  const plotX=M+66, plotY=98, plotW=W-M*2-66-10, plotH=210;
+  const maxV=niceMax(Math.max(...m.usage,...m.prod,1)), nTicks=6;
+  for(let t=0;t<=nTicks;t++){
+    const val=maxV*t/nTicks, y=plotY+plotH-(val/maxV)*plotH;
+    doc.setDrawColor(236,238,241); doc.setLineWidth(0.6); doc.line(plotX,y,plotX+plotW,y);
+    doc.setFont("helvetica","normal");doc.setFontSize(8); doc.setTextColor(...muted);
+    doc.text(Math.round(val).toLocaleString()+" kWh", plotX-6, y+3, {align:"right"});
+  }
+  const groupW=plotW/12, bw=Math.min(14,groupW*0.30), gap=3;
+  for(let i=0;i<12;i++){
+    const gx=plotX+i*groupW+groupW/2, uh=(m.usage[i]/maxV)*plotH, ph=(m.prod[i]/maxV)*plotH;
+    doc.setFillColor(244,98,46); doc.rect(gx-bw-gap/2, plotY+plotH-uh, bw, uh, "F");
+    doc.setFillColor(245,183,49); doc.rect(gx+gap/2, plotY+plotH-ph, bw, ph, "F");
+    doc.setFontSize(8); doc.setTextColor(...gray); doc.text(MONTHS[i], gx, plotY+plotH+13, {align:"center"});
+  }
+  doc.setDrawColor(...line); doc.setLineWidth(0.8); doc.line(plotX, plotY+plotH, plotX+plotW, plotY+plotH);
+
+  // legend
+  const ly=plotY+plotH+34, lcx=W/2-120;
+  doc.setFillColor(244,98,46); doc.rect(lcx,ly-9,11,11,"F");
+  doc.setFont("helvetica","normal");doc.setFontSize(10);doc.setTextColor(...gray);
+  doc.text("Energy usage", lcx+17, ly);
+  doc.setFillColor(245,183,49); doc.rect(lcx+140,ly-9,11,11,"F");
+  doc.text("New system production", lcx+157, ly);
+
+  // monthly numbers table (months across the top)
+  const fmt=v=>Math.round(v).toLocaleString();
+  doc.autoTable({
+    startY: ly+16, margin:{left:M,right:M},
+    head:[["", ...MONTHS]],
+    body:[
+      ["Energy usage (kWh)", ...m.usage.map(fmt)],
+      ["New system production (kWh)", ...m.prod.map(fmt)],
+      ["Avg. daily net (kWh)", ...m.usage.map((u,i)=> fmtNet(avgDailyNet(m.prod[i],u,i)))],
+    ],
+    theme:"grid",
+    styles:{fontSize:8, cellPadding:3, halign:"center", textColor:gray, lineColor:[230,232,236]},
+    headStyles:{fillColor:[246,247,248], textColor:muted, fontStyle:"bold", halign:"center"},
+    columnStyles:{0:{halign:"left", cellWidth:148, fontStyle:"bold", textColor:ink}},
+    didParseCell:(data)=>{
+      if(data.section!=="body") return;
+      if(data.column.index===0){
+        if(data.row.index===0) data.cell.styles.textColor=[244,98,46];
+        if(data.row.index===1) data.cell.styles.textColor=[207,143,0];
+      } else if(data.row.index===2){
+        const neg=String(data.cell.raw).trim().startsWith("−") || String(data.cell.raw).trim().startsWith("-");
+        data.cell.styles.textColor = neg ? [227,25,55] : [31,157,85];
+      }
+    },
+  });
+}
 
 // ---------- PDF (landscape letter, matches the slide) ----------
 async function exportPDF(withDetail){
@@ -360,16 +565,21 @@ async function exportPDF(withDetail){
   const M=40;
   const ink=[57,60,65], gray=[92,92,92], muted=[142,142,142], line=[206,208,216], red=[227,25,55], green=[31,157,85];
 
-  // ---- client header strip ----
-  doc.setTextColor(...ink); doc.setFont("helvetica","bold"); doc.setFontSize(13);
-  doc.text(d.clientName||"Prepared for client", M, 40);
+  // ---- header ----
+  // brand title
+  doc.setTextColor(...red); doc.setFont("helvetica","bold"); doc.setFontSize(15);
+  doc.text("TESLA SOLAR ROOF", M, 34, {charSpace:2});
+  // date / prepared-by (right)
   doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...gray);
-  if(d.address) doc.text(d.address, M, 55);
   const rightMeta=[d.preparedBy?("Prepared by "+d.preparedBy):"", d.quoteDate].filter(Boolean).join("    ·    ");
-  doc.text(rightMeta, W-M, 40, {align:"right"});
-  doc.setDrawColor(...line); doc.setLineWidth(0.8); doc.line(M,66,W-M,66);
+  doc.text(rightMeta, W-M, 34, {align:"right"});
+  // client name + address
+  doc.setFont("helvetica","bold"); doc.setFontSize(12.5); doc.setTextColor(...ink);
+  doc.text(d.clientName||"Prepared for client", M, 56);
+  if(d.address){ doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(...gray); doc.text(d.address, M, 70); }
+  doc.setDrawColor(...line); doc.setLineWidth(0.8); doc.line(M,82,W-M,82);
 
-  const bodyTop=84;
+  const bodyTop=100;
   const colGap=26;
   const photoW=(W-M*2)*0.56, statsX=M+photoW+colGap, statsW=(W-M*2)-photoW-colGap;
 
@@ -457,6 +667,10 @@ async function exportPDF(withDetail){
   doc.text("Estimates for comparison only; not a guarantee of production, savings, or future utility rates. Rate escalation and "+(d.degradation*100).toFixed(2)+"%/yr degradation are projections.",
     M,H-16,{maxWidth:W-M*2});
 
+  // ---- monthly production page (if data entered) ----
+  const monthly=collectMonthly();
+  if(monthly.any) drawMonthlyChartPDF(doc, monthly);
+
   // ---- optional detail page ----
   if(withDetail){
     doc.addPage("letter","landscape");
@@ -498,6 +712,7 @@ async function exportPDF(withDetail){
  }
 }
 
+buildMonthlyGrid();
 togglePW();
 render();
 </script>
