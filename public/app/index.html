@@ -134,8 +134,8 @@
         <div><label>Panels / tiles</label><input type="number" id="panels" step="1" placeholder="510" /></div>
         <div style="display:flex;align-items:flex-end;"><button type="button" id="fillDemo" class="btn-primary" style="background:#57606a;padding:8px 10px;font-size:12px;">Load example data</button></div>
       </div>
-      <label>Paste 12 rows from Aurora <span class="hint">— each row: usage &amp; production (spaces, tabs, or commas)</span></label>
-      <textarea id="monthlyPaste" rows="4" placeholder="2850 3650&#10;2500 3850&#10;2900 5000&#10;… (Jan → Dec)"></textarea>
+      <label>Paste from Aurora <span class="hint">— paste the whole table (months across) or 12 rows of “usage production”</span></label>
+      <textarea id="monthlyPaste" rows="4" placeholder="Jan  Feb  Mar  …  Dec&#10;Energy usage (kWh)  1,798  1,659  1,993  …&#10;New system production (kWh)  1,717  2,022  2,763  …"></textarea>
       <div class="mgrid" id="monthlyGrid"></div>
       <p class="hint">Chart appears in the preview and adds a “Monthly Production” page to the PDF. Leave blank to skip.</p>
     </fieldset>
@@ -308,12 +308,35 @@ function collectMonthly(){
   }
   return {usage,prod,any,panels:parseFloat($("panels").value)||0};
 }
+function numsIn(line){
+  return (line.match(/-?\d[\d,]*\.?\d*/g)||[]).map(s=>parseFloat(s.replace(/,/g,""))).filter(n=>!isNaN(n));
+}
 function parsePaste(){
-  const lines=$("monthlyPaste").value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
-  for(let row=0;row<12 && row<lines.length;row++){
-    const nums=lines[row].replace(/,/g," ").split(/\s+/).map(Number).filter(n=>!isNaN(n));
-    if(nums.length>=2){ $("mu"+row).value=nums[nums.length-2]; $("mp"+row).value=nums[nums.length-1]; }
-    else if(nums.length===1){ $("mu"+row).value=nums[0]; }
+  const lines=$("monthlyPaste").value.split(/\r?\n/);
+  const series=[], pairs=[];
+  for(const line of lines){
+    const nums=numsIn(line);
+    if(nums.length>=12) series.push({text:line.toLowerCase(), nums});
+    else if(nums.length>=1) pairs.push(nums);
+  }
+  if(series.length){
+    // Aurora format: months across, one row for usage + one for production
+    let usageRow=series.find(r=>/(usage|consum)/.test(r.text));
+    let prodRow =series.find(r=>/(prod|system|solar)/.test(r.text));
+    if(!usageRow && !prodRow){ usageRow=series[0]; prodRow=series[1]; }
+    else if(!usageRow){ usageRow=series.find(r=>r!==prodRow); }
+    else if(!prodRow){ prodRow=series.find(r=>r!==usageRow); }
+    for(let i=0;i<12;i++){
+      $("mu"+i).value = usageRow ? (usageRow.nums[i] ?? "") : "";
+      $("mp"+i).value = prodRow  ? (prodRow.nums[i]  ?? "") : "";
+    }
+  }else{
+    // one row per month: "usage production"
+    for(let row=0;row<12 && row<pairs.length;row++){
+      const nums=pairs[row];
+      if(nums.length>=2){ $("mu"+row).value=nums[nums.length-2]; $("mp"+row).value=nums[nums.length-1]; }
+      else if(nums.length===1){ $("mu"+row).value=nums[0]; }
+    }
   }
   render();
 }
