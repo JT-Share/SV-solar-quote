@@ -9,20 +9,39 @@ function safeEqual(a: string, b: string) {
   return out === 0;
 }
 
+// Allowed logins come from env vars:
+//  - ADMIN_USER / ADMIN_PASSWORD  (the original single admin)
+//  - AUTH_USERS: extra users as "email:password" pairs, separated by newlines or commas
+//    e.g.  Tesla@sunvena.com:Solar123!
+// Emails are matched case-insensitively; passwords are exact.
+function allowedUsers(): { u: string; p: string }[] {
+  const list: { u: string; p: string }[] = [];
+  if (process.env.ADMIN_USER && process.env.ADMIN_PASSWORD) {
+    list.push({ u: process.env.ADMIN_USER, p: process.env.ADMIN_PASSWORD });
+  }
+  for (const entry of (process.env.AUTH_USERS ?? "").split(/[\n,]+/)) {
+    const s = entry.trim();
+    if (!s) continue;
+    const i = s.indexOf(":");
+    if (i < 0) continue;
+    list.push({ u: s.slice(0, i).trim(), p: s.slice(i + 1) });
+  }
+  return list;
+}
+
 export async function POST(req: Request) {
   const form = await req.formData();
   const username = String(form.get("username") ?? "").trim();
   const password = String(form.get("password") ?? "");
 
-  const okUser = safeEqual(
-    username.toLowerCase(),
-    (process.env.ADMIN_USER ?? "").toLowerCase()
+  const match = allowedUsers().find(
+    (x) => x.u.toLowerCase() === username.toLowerCase()
   );
-  const okPass = safeEqual(password, process.env.ADMIN_PASSWORD ?? "");
+  const ok = !!match && safeEqual(password, match.p);
 
   const origin = new URL(req.url).origin;
 
-  if (!okUser || !okPass) {
+  if (!ok) {
     return NextResponse.redirect(new URL("/login?error=1", origin), { status: 303 });
   }
 
