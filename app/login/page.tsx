@@ -1,4 +1,4 @@
-import Link from "next/link";
+import PasswordField from "./PasswordField";
 
 export const metadata = { title: "Sign in — SunVena Solar Quote" };
 
@@ -77,14 +77,7 @@ export default async function LoginPage({
           style={inputStyle}
         />
 
-        <label style={labelStyle}>Password</label>
-        <input
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          style={inputStyle}
-        />
+        <PasswordField />
 
         <button
           type="submit"
