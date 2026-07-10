@@ -651,8 +651,8 @@ function drawWarrantyPage(doc){
     sy+=40;
   });
 
-  // Tesla Certified Installer badge (bottom-right) + footer
-  if(window.TESLA_BADGE){ try{ doc.addImage(window.TESLA_BADGE,"JPEG", W-M-118, H-64, 118, 118*99/150);}catch(e){} }
+  // Solar Roof Premier Certified Installer badge (bottom-right) + footer
+  if(window.TESLA_BADGE){ try{ const bw=158, bh=bw/(window.BADGE_AR||3.043); doc.addImage(window.TESLA_BADGE,"JPEG", W-M-bw, H-bh-12, bw, bh);}catch(e){} }
   doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(...gray);
   doc.text("SunVena Solar", M, H-24);
   doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(...muted);
@@ -775,7 +775,7 @@ async function exportPDF(withDetail){
   doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(...gray);
   doc.text("SunVena Solar",M,H-26);
   doc.setFont("helvetica","normal");doc.setFontSize(7);doc.setTextColor(...muted);
-  doc.text("Tesla Certified Installer  ·  Solar Roof + Powerwall",M,H-16);
+  doc.text("Tesla Solar Roof Premier Certified Installer  ·  Powerwall",M,H-16);
   doc.text("Estimates for comparison only; not a guarantee of production, savings, or future utility rates. Rate escalation and "+(d.degradation*100).toFixed(2)+"%/yr degradation are projections.",
     W-M,H-16,{align:"right",maxWidth:(W-M*2)*0.62});
 
