@@ -606,7 +606,7 @@ function drawWarrantyPage(doc){
   // title + SunVena logo
   doc.setTextColor(...ink); doc.setFont("helvetica","bold"); doc.setFontSize(16);
   doc.text("Warranty & Coverage", M, 44);
-  if(window.SUNVENA_LOGO){ try{ doc.addImage(window.SUNVENA_LOGO,"JPEG", W-M-70, 16, 70, 70*658/857);}catch(e){} }
+  if(window.SUNVENA_LOGO){ try{ const lw=50, lh=lw/(window.LOGO_AR||1); doc.addImage(window.SUNVENA_LOGO,"JPEG", W-M-lw, 10, lw, lh);}catch(e){} }
   doc.setDrawColor(...line); doc.setLineWidth(0.8); doc.line(M,66,W-M,66);
 
   // four warranty items across
@@ -677,7 +677,7 @@ async function exportPDF(withDetail){
   doc.setTextColor(...red); doc.setFont("helvetica","bold"); doc.setFontSize(15);
   doc.text("TESLA SOLAR ROOF", M, 34, {charSpace:2});
   // SunVena logo (top-right)
-  if(window.SUNVENA_LOGO){ try{ doc.addImage(window.SUNVENA_LOGO,"JPEG", W-M-58, 14, 58, 58*658/857);}catch(e){} }
+  if(window.SUNVENA_LOGO){ try{ const lw=54, lh=lw/(window.LOGO_AR||1); doc.addImage(window.SUNVENA_LOGO,"JPEG", W-M-lw, 14, lw, lh);}catch(e){} }
   // date / prepared-by (right, under logo)
   doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(...gray);
   const rightMeta=[d.preparedBy?("Prepared by "+d.preparedBy):"", d.quoteDate].filter(Boolean).join("   ·   ");
