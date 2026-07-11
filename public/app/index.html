@@ -8,6 +8,7 @@
 <script src="vendor/jspdf.plugin.autotable.min.js"></script>
 <script src="stock.js"></script>
 <script src="brand.js"></script>
+<script src="benefit-photos.js"></script>
 <style>
   :root{
     --ink:#393c41;         /* Tesla near-black */
@@ -597,6 +598,52 @@ function drawMonthlyChartPDF(doc, m){
   });
 }
 
+// ---------- rounded photo helper (for the benefits page) ----------
+async function roundedPhotoPDF(doc, src, x, y, w, h){
+  const meta=await loadImg(src);
+  if(!meta) return;
+  const scale=Math.max(w/meta.w, h/meta.h), px=2;
+  const cv=document.createElement("canvas"); cv.width=w*px; cv.height=h*px;
+  const ctx=cv.getContext("2d"), r=10*px;
+  ctx.beginPath(); ctx.moveTo(r,0);
+  ctx.arcTo(cv.width,0,cv.width,cv.height,r); ctx.arcTo(cv.width,cv.height,0,cv.height,r);
+  ctx.arcTo(0,cv.height,0,0,r); ctx.arcTo(0,0,cv.width,0,r); ctx.closePath(); ctx.clip();
+  const dw=meta.w*scale*px, dh=meta.h*scale*px;
+  ctx.drawImage(meta.img, (w*px-dw)/2, (h*px-dh)/2, dw, dh);
+  try{ doc.addImage(cv.toDataURL("image/jpeg",0.9),"JPEG",x,y,w,h);}catch(e){}
+}
+
+// ---------- "Why a SunVena Solar Roof" benefits page ----------
+async function drawBenefitsPage(doc){
+  doc.addPage("letter","landscape");
+  const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=40;
+  const navy=[26,45,90], orange=[233,140,20], ink=[57,60,65], gray=[92,92,92], line=[206,208,216];
+  // header
+  doc.setTextColor(...navy); doc.setFont("helvetica","bold"); doc.setFontSize(18);
+  doc.text("Why a SunVena Solar Roof", M, 40);
+  if(window.SUNVENA_LOGO){ try{ const lw=52, lh=lw/(window.LOGO_AR||1); doc.addImage(window.SUNVENA_LOGO,"JPEG", W-M-lw, 8, lw, lh);}catch(e){} }
+  doc.setDrawColor(...line); doc.setLineWidth(0.8); doc.line(M,60,W-M,60);
+  // three benefit columns
+  const gap=22, colW=(W-M*2-gap*2)/3, phH=190, top=90;
+  const photos=[window.PH1, window.PH2, window.PH3];
+  const stats=[
+    ["3X",["Life expectancy","over asphalt shingle"]],
+    ["2X",["Longer tile warranty","with SunVena"]],
+    ["Best",["In-class warranty","& service"]],
+  ];
+  for(let i=0;i<3;i++){
+    const x=M+i*(colW+gap);
+    if(photos[i]) await roundedPhotoPDF(doc, photos[i], x, top, colW, phH);
+    doc.setFont("helvetica","bold"); doc.setFontSize(34); doc.setTextColor(...orange);
+    doc.text(stats[i][0], x, top+phH+42);
+    doc.setFont("helvetica","normal"); doc.setFontSize(14); doc.setTextColor(...ink);
+    doc.text(stats[i][1], x, top+phH+66);
+  }
+  // Premier badge + footer
+  if(window.TESLA_BADGE){ try{ const bw=185, bh=bw/(window.BADGE_AR||3.043); doc.addImage(window.TESLA_BADGE,"JPEG", W-M-bw, H-bh-12, bw, bh);}catch(e){} }
+  doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(...gray); doc.text("SunVena Solar", M, H-16);
+}
+
 // ---------- warranty & coverage page ----------
 function drawWarrantyPage(doc){
   doc.addPage("letter","landscape");
@@ -652,7 +699,7 @@ function drawWarrantyPage(doc){
   });
 
   // Solar Roof Premier Certified Installer badge (bottom-right) + footer
-  if(window.TESLA_BADGE){ try{ const bw=158, bh=bw/(window.BADGE_AR||3.043); doc.addImage(window.TESLA_BADGE,"JPEG", W-M-bw, H-bh-12, bw, bh);}catch(e){} }
+  if(window.TESLA_BADGE){ try{ const bw=185, bh=bw/(window.BADGE_AR||3.043); doc.addImage(window.TESLA_BADGE,"JPEG", W-M-bw, H-bh-12, bw, bh);}catch(e){} }
   doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(...gray);
   doc.text("SunVena Solar", M, H-24);
   doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(...muted);
@@ -778,6 +825,9 @@ async function exportPDF(withDetail){
   doc.text("Tesla Solar Roof Premier Certified Installer  ·  Powerwall",M,H-16);
   doc.text("Estimates for comparison only; not a guarantee of production, savings, or future utility rates. Rate escalation and "+(d.degradation*100).toFixed(2)+"%/yr degradation are projections.",
     W-M,H-16,{align:"right",maxWidth:(W-M*2)*0.62});
+
+  // ---- benefits ("why solar roof") page ----
+  await drawBenefitsPage(doc);
 
   // ---- warranty & coverage page ----
   drawWarrantyPage(doc);
