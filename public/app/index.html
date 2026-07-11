@@ -650,11 +650,14 @@ function drawWarrantyPage(doc){
   const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=40;
   const ink=[57,60,65], gray=[92,92,92], muted=[142,142,142], line=[206,208,216], red=[227,25,55];
 
-  // title + SunVena logo
+  // title + tagline + SunVena logo
+  const orange=[233,140,20];
   doc.setTextColor(...ink); doc.setFont("helvetica","bold"); doc.setFontSize(16);
-  doc.text("Warranty & Coverage", M, 44);
-  if(window.SUNVENA_LOGO){ try{ const lw=50, lh=lw/(window.LOGO_AR||1); doc.addImage(window.SUNVENA_LOGO,"JPEG", W-M-lw, 10, lw, lh);}catch(e){} }
-  doc.setDrawColor(...line); doc.setLineWidth(0.8); doc.line(M,66,W-M,66);
+  doc.text("Warranty & Coverage", M, 38);
+  doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.setTextColor(...orange);
+  doc.text("Best Solar Roof Warranty Available", M, 56);
+  if(window.SUNVENA_LOGO){ try{ const lw=50, lh=lw/(window.LOGO_AR||1); doc.addImage(window.SUNVENA_LOGO,"JPEG", W-M-lw, 8, lw, lh);}catch(e){} }
+  doc.setDrawColor(...line); doc.setLineWidth(0.8); doc.line(M,70,W-M,70);
 
   // four warranty items across
   const items=[
