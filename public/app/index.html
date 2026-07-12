@@ -9,6 +9,8 @@
 <script src="stock.js"></script>
 <script src="brand.js"></script>
 <script src="benefit-photos.js"></script>
+<script src="proposal-assets.js"></script>
+<script src="gallery-photos.js"></script>
 <style>
   :root{
     --ink:#393c41;         /* Tesla near-black */
@@ -99,6 +101,15 @@
   .qrow a.qdel{color:var(--muted);font-weight:400;}
   .qrow a:hover{text-decoration:underline;}
   #savedList{max-height:200px;overflow-y:auto;margin-top:6px;}
+  .pagechecks{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin-top:2px;}
+  .pk{display:flex;align-items:center;gap:7px;margin:0;font-size:12.5px;color:var(--ink);cursor:pointer;}
+  .pk input{width:auto;}
+  .gthumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;}
+  .gthumb{position:relative;border-radius:6px;overflow:hidden;cursor:pointer;border:2px solid transparent;aspect-ratio:16/10;}
+  .gthumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .gthumb.sel{border-color:var(--accent);}
+  .gthumb .chk{position:absolute;top:3px;right:3px;width:17px;height:17px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;transition:opacity .1s;}
+  .gthumb:not(.sel) .chk{opacity:0;}
 </style>
 </head>
 <body>
@@ -220,6 +231,24 @@
       <input type="text" id="lblEnergy" placeholder="Est. {term} Yr Energy Cost" />
       <label>Generator line</label>
       <input type="text" id="lblGen" placeholder="Backup Generator" />
+    </fieldset>
+
+    <fieldset>
+      <legend>Proposal Pages</legend>
+      <p class="hint" style="margin-top:0;">Tick which pages to include in this proposal.</p>
+      <div class="pagechecks">
+        <label class="pk"><input type="checkbox" id="pgBenefits" checked> Why a SunVena Solar Roof</label>
+        <label class="pk"><input type="checkbox" id="pgEnergy" checked> Tesla Energy System</label>
+        <label class="pk"><input type="checkbox" id="pgComponents" checked> Primary Components</label>
+        <label class="pk"><input type="checkbox" id="pgCoolRoof" checked> Cool Roof</label>
+        <label class="pk"><input type="checkbox" id="pgWarranty" checked> Warranty &amp; Coverage</label>
+        <label class="pk"><input type="checkbox" id="pgMonthly" checked> Monthly Production</label>
+        <label class="pk"><input type="checkbox" id="pgGallery"> Recent Installations</label>
+      </div>
+      <div id="galleryPicker" style="display:none;margin-top:10px;">
+        <label>Gallery photos <span class="hint">— tap to include</span></label>
+        <div id="galleryThumbs" class="gthumbs"></div>
+      </div>
     </fieldset>
 
     <fieldset>
@@ -662,6 +691,125 @@ async function drawBenefitsPage(doc){
   doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(...gray); doc.text("SunVena Solar", M, H-16);
 }
 
+// ---------- shared helpers for proposal pages ----------
+const NAVY=[26,45,90], ORANGE=[233,140,20];
+function proposalHeader(doc, W, M, title){
+  const line=[206,208,216];
+  doc.setTextColor(...NAVY); doc.setFont("helvetica","bold"); doc.setFontSize(18);
+  doc.text(title, M, 40);
+  if(window.SUNVENA_LOGO){ try{ const lw=52, lh=lw/(window.LOGO_AR||1); doc.addImage(window.SUNVENA_LOGO,"JPEG", W-M-lw, 10, lw, lh);}catch(e){} }
+  doc.setDrawColor(...line); doc.setLineWidth(0.8); doc.line(M,60,W-M,60);
+}
+function premierBadge(doc, W, H, M){
+  if(window.TESLA_BADGE){ try{ const bw=185, bh=bw/(window.BADGE_AR||3.043); doc.addImage(window.TESLA_BADGE,"JPEG", W-M-bw, H-bh-12, bw, bh);}catch(e){} }
+  doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.setTextColor(92,92,92); doc.text("SunVena Solar", M, H-16);
+}
+// fit an image inside a box, centered, preserving aspect (ar = w/h)
+function containImagePDF(doc, src, ar, cx, cy, cw, ch){
+  let w=cw, h=cw/ar;
+  if(h>ch){ h=ch; w=ch*ar; }
+  try{ doc.addImage(src,"JPEG", cx+(cw-w)/2, cy+(ch-h)/2, w, h);}catch(e){}
+}
+
+// ---------- Complete Tesla Energy System page ----------
+async function drawEnergySystemPage(doc){
+  doc.addPage("letter","landscape");
+  const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=40;
+  const ink=[57,60,65], gray=[92,92,92];
+  proposalHeader(doc, W, M, "The Complete Tesla Energy System");
+  const items=(window.PA&&window.PA.energy)||[];
+  const gap=22, colW=(W-M*2-gap*2)/3, phH=195, top=88;
+  for(let i=0;i<3 && i<items.length;i++){
+    const x=M+i*(colW+gap);
+    await roundedPhotoPDF(doc, items[i].img, x, top, colW, phH);
+    doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.setTextColor(...NAVY);
+    doc.text(items[i].title, x, top+phH+22);
+    doc.setFont("helvetica","normal"); doc.setFontSize(11); doc.setTextColor(...gray);
+    doc.text(doc.splitTextToSize(items[i].desc, colW-6), x, top+phH+40);
+  }
+  premierBadge(doc, W, H, M);
+}
+
+// ---------- Primary Components page ----------
+function drawComponentsPage(doc){
+  doc.addPage("letter","landscape");
+  const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=40;
+  const ink=[57,60,65], gray=[92,92,92], muted=[142,142,142];
+  proposalHeader(doc, W, M, "Primary Components");
+  const comps=(window.PA&&window.PA.components)||[];
+  // light band
+  const bandY=110, bandH=300;
+  doc.setFillColor(244,245,247); doc.rect(0, bandY, W, bandH, "F");
+  const n=comps.length, colW=(W-M*2)/n, iconH=96, iconTop=bandY+34;
+  for(let i=0;i<n;i++){
+    const cx=M+i*colW, cxc=cx+colW/2, c=comps[i];
+    containImagePDF(doc, c.img, c.ar||1, cx+14, iconTop, colW-28, iconH);
+    let y=iconTop+iconH+26;
+    doc.setFont("helvetica","normal"); doc.setFontSize(11); doc.setTextColor(...ink);
+    doc.text(c.title, cxc, y, {align:"center"});
+    doc.setDrawColor(...ORANGE); doc.setLineWidth(1); doc.line(cxc-12, y+10, cxc+12, y+10);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(...muted);
+    doc.text(doc.splitTextToSize(c.spec, colW-20), cxc, y+26, {align:"center"});
+  }
+  premierBadge(doc, W, H, M);
+}
+
+// ---------- Cool Roof (thermal) page ----------
+function drawCoolRoofPage(doc){
+  doc.addPage("letter","landscape");
+  const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=40;
+  const ink=[57,60,65], gray=[92,92,92], muted=[142,142,142];
+  proposalHeader(doc, W, M, "A Cooler Roof — Even Under the Sun");
+  const colW=(W-M*2), leftW=colW*0.42, top=92;
+  // body text (left)
+  doc.setFont("helvetica","normal"); doc.setFontSize(11.5); doc.setTextColor(...ink);
+  const body="A question we hear all the time: won’t a dark roof make my home hotter? Tesla’s textured glass Solar Roof tiles are engineered to reflect heat rather than trap it.";
+  doc.text(doc.splitTextToSize(body, leftW), M, top+6);
+  const bullets=[
+    "Reflects solar heat instead of absorbing it",
+    "Helps keep the attic and living space cooler",
+    "Lower cooling bills vs. dark asphalt shingles",
+  ];
+  let by=top+70;
+  bullets.forEach(b=>{
+    doc.setFillColor(...ORANGE); doc.circle(M+3, by-3, 2.5, "F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.setTextColor(...ink);
+    doc.text(doc.splitTextToSize(b, leftW-16), M+14, by); by+=26;
+  });
+  // caption (left column, below bullets — clear of the badge)
+  doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(...gray);
+  doc.text(doc.splitTextToSize("The thermal image at right shows the cooler surface temperatures measured across a Tesla Solar Roof installation.", leftW), M, by+10);
+  // thermal image (right)
+  const th=(window.PA&&window.PA.thermal);
+  if(th){
+    const rx=M+leftW+24, rw=W-M-rx, rh=H-top-90;
+    containImagePDF(doc, th.img, th.ar||1.25, rx, top, rw, rh);
+  }
+  premierBadge(doc, W, H, M);
+}
+
+// ---------- Recent Installations gallery page ----------
+async function drawGalleryPage(doc, photos){
+  doc.addPage("letter","landscape");
+  const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=40;
+  proposalHeader(doc, W, M, "Recent SunVena Installations");
+  const n=photos.length, cols=Math.min(3, n), rows=Math.ceil(n/cols), gap=14;
+  const gridTop=86, gridBottom=H-64;
+  const pw=(W-M*2-gap*(cols-1))/cols;
+  let ph=pw/1.6;
+  const maxRowsH=gridBottom-gridTop;
+  if(rows*ph+(rows-1)*gap > maxRowsH) ph=(maxRowsH-(rows-1)*gap)/rows;
+  const gridH=rows*ph+(rows-1)*gap, gy0=gridTop+Math.max(0,(maxRowsH-gridH)/2);
+  for(let i=0;i<n;i++){
+    const r=Math.floor(i/cols), c=i%cols;
+    const rowCount=Math.min(cols, n-r*cols);
+    const rowW=rowCount*pw+(rowCount-1)*gap, gx0=(W-rowW)/2;
+    const x=gx0+c*(pw+gap), y=gy0+r*(ph+gap);
+    await roundedPhotoPDF(doc, photos[i], x, y, pw, ph);
+  }
+  premierBadge(doc, W, H, M);
+}
+
 // ---------- warranty & coverage page ----------
 function drawWarrantyPage(doc){
   doc.addPage("letter","landscape");
@@ -847,15 +995,15 @@ async function exportPDF(withDetail){
   doc.text("Estimates for comparison only; not a guarantee of production, savings, or future utility rates. Rate escalation and "+(d.degradation*100).toFixed(2)+"%/yr degradation are projections.",
     W-M,H-16,{align:"right",maxWidth:(W-M*2)*0.62});
 
-  // ---- benefits ("why solar roof") page ----
-  await drawBenefitsPage(doc);
-
-  // ---- warranty & coverage page ----
-  drawWarrantyPage(doc);
-
-  // ---- monthly production page (if data entered) ----
+  // ---- content pages (per the Proposal Pages checklist) ----
+  if($("pgBenefits").checked) await drawBenefitsPage(doc);
+  if($("pgEnergy").checked) await drawEnergySystemPage(doc);
+  if($("pgComponents").checked) drawComponentsPage(doc);
+  if($("pgCoolRoof").checked) drawCoolRoofPage(doc);
+  if($("pgGallery").checked){ const sel=selectedGalleryPhotos(); if(sel.length) await drawGalleryPage(doc, sel); }
+  if($("pgWarranty").checked) drawWarrantyPage(doc);
   const monthly=collectMonthly();
-  if(monthly.any) drawMonthlyChartPDF(doc, monthly);
+  if($("pgMonthly").checked && monthly.any) drawMonthlyChartPDF(doc, monthly);
 
   // ---- optional detail page ----
   if(withDetail){
@@ -898,6 +1046,30 @@ async function exportPDF(withDetail){
  }
 }
 
+// ---------- gallery photo picker ----------
+let gallerySel = new Set();
+function buildGalleryPicker(){
+  const host=$("galleryThumbs"); if(!host) return;
+  const g=window.GALLERY||[];
+  host.innerHTML=g.map((p,i)=>'<div class="gthumb" data-i="'+i+'"><img src="'+p.img+'"><span class="chk">✓</span></div>').join('');
+  syncGalleryThumbs();
+}
+function syncGalleryThumbs(){
+  document.querySelectorAll('#galleryThumbs .gthumb').forEach(t=>{
+    t.classList.toggle('sel', gallerySel.has(+t.dataset.i));
+  });
+}
+$("pgGallery").addEventListener("change", e=>{ $("galleryPicker").style.display = e.target.checked?'block':'none'; });
+$("galleryThumbs").addEventListener("click", e=>{
+  const t=e.target.closest('.gthumb'); if(!t) return; const i=+t.dataset.i;
+  if(gallerySel.has(i)) gallerySel.delete(i); else gallerySel.add(i);
+  t.classList.toggle('sel');
+});
+function selectedGalleryPhotos(){
+  const g=window.GALLERY||[];
+  return [...gallerySel].sort((a,b)=>a-b).map(i=>g[i]&&g[i].img).filter(Boolean);
+}
+
 // ---------- saved quotes (cross-device) ----------
 let currentQuoteId = null;
 
@@ -907,7 +1079,7 @@ function serializeQuote(){
     if(!el.id || el.type==='file' || el.type==='button' || el.type==='submit') return;
     fields[el.id] = (el.type==='checkbox') ? el.checked : el.value;
   });
-  return {fields, uploadedImg};
+  return {fields, uploadedImg, gallerySel:[...gallerySel]};
 }
 function applyQuote(state){
   const f=(state&&state.fields)||{};
@@ -916,6 +1088,9 @@ function applyQuote(state){
     if(el.type==='checkbox') el.checked=!!f[el.id]; else el.value=f[el.id];
   });
   uploadedImg = (state&&state.uploadedImg) || null;
+  gallerySel = new Set((state&&state.gallerySel)||[]);
+  $("galleryPicker").style.display = $("pgGallery").checked?'block':'none';
+  syncGalleryThumbs();
   togglePW(); render();
 }
 function qStatus(msg,color){ $("saveStatus").innerHTML = msg?('<span style="color:'+(color||'var(--muted)')+'">'+msg+'</span>'):''; }
@@ -972,6 +1147,7 @@ $("savedList").addEventListener("click", e=>{
 });
 
 buildMonthlyGrid();
+buildGalleryPicker();
 togglePW();
 render();
 fetchQuotes();
