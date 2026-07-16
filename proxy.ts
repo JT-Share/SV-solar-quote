@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // Paths that never require auth.
-const PUBLIC_PATHS = ["/login", "/api/login", "/api/logout"];
+// /order.html is the customer-facing order builder - links carry pricing in the URL fragment.
+const PUBLIC_PATHS = ["/login", "/api/login", "/api/logout", "/order.html"];
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
