@@ -175,7 +175,7 @@
       <legend>Electricity & Term</legend>
       <div class="row">
         <div><label>Current rate ($/kWh)</label><input type="number" id="rate" step="0.0001" placeholder="0.15" /></div>
-        <div><label>Annual rate increase (%)</label><input type="number" id="escalation" step="0.1" placeholder="6" /></div>
+        <div><label>Annual rate increase (%)</label><input type="number" id="escalation" step="0.1" value="5" /></div>
       </div>
       <div class="row">
         <div><label>Comparison term (years)</label><input type="number" id="term" step="1" value="35" /></div>
@@ -243,9 +243,9 @@
         <label class="pk"><input type="checkbox" id="pgCoolRoof" checked> Cool Roof</label>
         <label class="pk"><input type="checkbox" id="pgWarranty" checked> Warranty &amp; Coverage</label>
         <label class="pk"><input type="checkbox" id="pgMonthly" checked> Monthly Production</label>
-        <label class="pk"><input type="checkbox" id="pgGallery"> Recent Installations</label>
+        <label class="pk"><input type="checkbox" id="pgGallery" checked> Recent Installations</label>
       </div>
-      <div id="galleryPicker" style="display:none;margin-top:10px;">
+      <div id="galleryPicker" style="margin-top:10px;">
         <label>Gallery photos <span class="hint">— tap to include</span></label>
         <div id="galleryThumbs" class="gthumbs"></div>
       </div>
@@ -1051,6 +1051,7 @@ let gallerySel = new Set();
 function buildGalleryPicker(){
   const host=$("galleryThumbs"); if(!host) return;
   const g=window.GALLERY||[];
+  gallerySel = new Set(g.map((_,i)=>i));   // all photos selected by default
   host.innerHTML=g.map((p,i)=>'<div class="gthumb" data-i="'+i+'"><img src="'+p.img+'"><span class="chk">✓</span></div>').join('');
   syncGalleryThumbs();
 }
